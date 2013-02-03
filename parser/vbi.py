@@ -27,8 +27,10 @@ __author__='seb@mikrolax.me'
 __license__='MIT'
 __version__='beta'
 
+import os
 import logging
-logging.basicConfig(level=logging.INFO)
+FORMAT = "%(levelname)s:%(module)s:%(message)s" #%(asctime)s
+logging.basicConfig(format=FORMAT,level=logging.INFO)
 
 import bitstring
 from ts import TS as TS #or Extractor()
@@ -52,10 +54,13 @@ class vbiPES(object):
     self.line_infos=[]
     self.pesInfos=[] #list of currentPES dict
     self.currentPES={}
+    self.pesStat=[] 
+    # [ {pts:PTS,data:[(line_idx,data_type),(line_idx,data_type)]},
+    #   {pts:PTS,data:[(line_idx,data_type),(line_idx,data_type)]},
+    #   {pts:PTS,data:[(line_idx,data_type),(line_idx,data_type)]} ]
 
   def find_sync(self):
     return self.bits.find('0x000001bd')
-
   
   def parse_header(self):
     self.packet_start_code,self.stream_id,self.pes_packet_lentgh = self.bits.readlist('hex:24,hex:8,uint:16') #use le when generating from lib...
@@ -87,7 +92,7 @@ class vbiPES(object):
               pesInfos['error']='pes header data'
           elif optional_pes_header_part == '8401':
             if self.pes_header_data_length == 36:
-              pesInfos['pts']=self.bits.read('hex:288')
+              pesInfos['PTS']=self.bits.read('hex:288')
             else:
               print 'error : pes_header_data_length'
               pesInfos['error']='pes_header_data_length'
@@ -143,12 +148,12 @@ class vbiPES(object):
     return True
       
   def print_line_infos(self):
-    logging.info('### new PES') #add pes packet nb
+    logging.debug('### new PES') #add pes packet nb
     infos=[]
     self.currentPES['payload']=[]
     for data_unit_id,data_unit_lenght,field_parity,line,data in self.line_infos:
       if data_unit_id in data_unit_info.keys():
-        logging.info('* found %s on line %s '%(data_unit_info[data_unit_id],line))
+        logging.debug('* found %s on line %s '%(data_unit_info[data_unit_id],line))
         line_infos={}
         line_infos['data_unit_id']=data_unit_id
         line_infos['data_unit_lenght']=data_unit_lenght
@@ -187,8 +192,28 @@ class vbiPES(object):
     #with open('vbipes.bin','wb') as f:
     #  f.write(data)
     self.analyse()
-    #self.writeReport(filepath+'.md')
+    self.computeStat()
 
+  def computeStat(self):
+    pesStat=[]
+    for pes in self.pesInfos:
+      stat={}
+      if 'header' in pes.keys():
+        if 'PTS' in pes['header'].keys():
+          stat['pts']=pes['header']['PTS']
+        else:
+          stat['pts']=None
+      else:  
+        stat['pts']=None
+      data=[]
+      if 'payload' in pes.keys(): 
+        for line_info in pes['payload']:
+          data.append( (line_info['line'],line_info['data_unit_id']) )
+      stat['data']=data
+      pesStat.append(stat)  
+    self.pesStat=pesStat
+
+  # Write functions
   def writeES(self,filepath):
     logging.warning('ES stream writing not implemented yet...')
     pass
@@ -198,23 +223,98 @@ class vbiPES(object):
       #or write self.bits!
       
   def writeReport(self,filepath,mode='md'):
-    logging.info('writeReport (%s): write %s pes infos into %s' %(mode,str(len(self.pesInfos)),str(filepath)))    
+    logging.info('writeReport (%s): write %s pes infos' %(mode,str(len(self.pesInfos))))    
+    logging.debug('write into %s' %str(os.path.basename(filepath)))
     if mode == 'md':
-      with open(filepath,'w') as mdfile:
+      with open(filepath,'a') as mdfile:
         pesidx=0
         for pes in self.pesInfos:
           pesidx+=1
-          mdfile.write('# PES %s infos     \n' %str(pesidx))
+          mdfile.write('* PES %s infos     \n' %str(pesidx))
+          mdfile.write('     \n')
           if 'header' in pes.keys():
             for key in pes['header'].keys():
-              mdfile.write('* %s : %s     \n'%(key,pes['header'][key]))
+              mdfile.write('        %s : %s     \n'%(key,pes['header'][key]))
           if 'payload' in pes.keys(): 
             for line_info in pes['payload']:
-              mdfile.write('* found %s on line %s : %s bytes     \n'%(data_unit_info[line_info['data_unit_id']],line_info['line'],line_info['data_unit_lenght']))
-          mdfile.write('     \n')  
-
-
+              mdfile.write('        found %s on line %s : %s bytes     \n'%(data_unit_info[line_info['data_unit_id']],line_info['line'],line_info['data_unit_lenght']))
+          mdfile.write('     \n') 
+      mdfile.close()  
+  
+  # Check functions
+  def checkDeltaPTS(self,valueInTick):
+    delta=[]
+    prev_pts=self.pesStat[0]['pts']
+    for pes in self.pesStat[1:]:
+      try:
+        delta.append(long(pes['pts'],base=16)-long(prev_pts,base=16))
+      except :
+        pass
+      prev_pts=pes['pts']
+    if len(delta):
+      logging.debug('Delta PTS min : %s' %str(min(delta)))
+      logging.debug('Delta PTS max : %s' %str(max(delta)))
+      if min(delta[1:])==long(valueInTick):
+        return (True,str(min(delta[1:])))
+      else:
+        return (False,str(min(delta[1:])))        
+    else:
+      return (False,'No PTS?')
+      
+  def checkDataUnit(self,value):
+    return (True,value)
+  
+  def checkDataLine(self,lineNb,param,value):
+    result=False
+    status='not found'
+    value_list=[]
+    pes_idx=0
+    for pes in self.pesInfos:
+      pes_idx+=1
+      if 'payload' in pes.keys():
+        for line_info in pes['payload']:
+          if line_info['line']==lineNb:
+            print 'found line %s' %line_info['line']
+            if line_info[param]==value:
+              print 'found param %s' %line_info[param]
+              value_list.append(True)
+    #print value_list
+    if len(value_list)>0:
+      result=True
+      status='%d/%d' %(len(value_list),pes_idx)      
+    return (result,status)
+  
+        
+  def check(self,action,lineNb=None,param=None,value=None,report=None): #add line_idx/occurence/pes nb???
+    #available_action=['line','data_unit','PTS']
+    if action=='line':
+      msg='line %d check if %s=%s...' %(int(lineNb),str(param),str(value))
+      #print msg, 
+      res=self.checkDataLine(lineNb,param,value)
+    elif action=='data_unit':
+      msg='Check if data_unit=%s...' %str(value)
+      #print msg, 
+      res=self.checkDataUnit(value)      
+    elif action=='PTS':
+      msg='Check if Delta PTS=%s...' %str(value)
+      #print msg, 
+      res=self.checkDeltaPTS(value)
+    else:
+      msg='Unknown check expression %s.Skipping.' %action
+      #print msg, 
+      return False
+      
+    #print res  
+    logging.info('     %s : %s' %(str(msg),str(res)) )
+      
+    if report!=None:
+      md='     %s : %s (%s)\n' %(str(msg),str(res[0]),str(res[1]) ) 
+      mdfile=open(report,'a')    # codecs.open(report,'a','utf8')
+      mdfile.write(md)
+      #mdfile.write('     \n')   
+      mdfile.close()
+    return res
   
 if __name__ == '__main__':
-  vbiPES().analyseFromTS('VBIpid53.ts',pid=53) # add pid
+  pass
   

@@ -1,27 +1,30 @@
 abroadpars
 ==========
 
-Another BROADcast stream PARser     
+>Another BROADcast stream PARser    
+Toolbox for stream testing      
 
-_in development_     
+_in development and  not focused on video_     
+- - -    
 
-## Current status 
+
 ### vbipars
-A simple parser to get VBI/VANC data inserted in MPEG2/MPEG4 TS stream:    
+>A simple parser to get VBI/VANC data inserted in MPEG2/MPEG4 TS stream:    
 
-From VBI PID:
+__From VBI PID:__   
+
 * analyse stream conforming to ETSI EN 301 775   
 
-From video PID:
+__From video PID:__   
+
 * treat User Data (MPEG2) or SEI (MPEG4)    
 * get AFD, Closed caption and bar data (time code TODO)    
 
-Can generate report and scriptable for automated test process.   
+Can generate markdown report and scriptable for automated test process.   
 
 #### Usage
     $ python vbipars.py -h
-    usage: vbipars.py [-h] [-v] [-f FORMAT] [-video VIDEO_PID] [-vbi VBI_PID]
-                      [-e EXTRACT] [-r REPORT] [-tst TEST_FILE]
+    usage: vbipars.py [-h] [-v] [-f FORMAT] [-video VIDEO_PID] [-vbi VBI_PID] [-e EXTRACT] [-r REPORT] [-tst TEST_FILE]
                       [-os OUTPUT_STREAM] [-or OUTPUT_REPORT]
                       infile
 
@@ -50,9 +53,65 @@ Can generate report and scriptable for automated test process.
       -or OUTPUT_REPORT, --output_report OUTPUT_REPORT
                             output report file name. Override default one.     
 
+See latter for  more info an tests.   
 
+- - -
+### vbitest
+>An easy way to automate tests with `vbipars`    
+
+#### Usage
+    $ python vbitest.py /path/to/testsuite_config_file
+
+See latter for  more info an tests.   
+
+- - -
+#### Note for tests 
+* __Testsuite__ config example  (used by `vbitest.py` script)     
+
+         # test_name              // Needed, delimiter for tests 
+         testsuite;test_name;     // Override previous name
+         testsuite;input_file;    // Input file 
+         testsuite;vbi_pid;       
+         testsuite;video_pid;
+         testsuite;tst_file;this  // check for vbi and video tests defined here!
+
+* __Generic VBI tests__ config example (used by `vbipars.py` and `vbitest.py` script)      
+_Here we will check that we have teletext on line 10_     
+
+         vbi;data_unit;16             // check that PES data_unit equal 16
+         vbi;line;10;data_unit_id;03  // check that data_unit_id of line 10 is equal to 3 (Teletext)
+         vbi;PTS;7200                 // check that min delta PTS between 2 PES is 7200 tick unit
+
+* __Generic Video tests__ config example (used by `vbipars.py` and vbitest.py script)      
+_Here we check that we have valid closed caption and that AFD value is 2_
+
+        video;cc;cc_valid;True                // Check that you have valid closed caption
+        video;afd;active_format_descriptor;2  // Check active_format_descriptor equal 2
+        video;afd;aspect_ratio;1              // Check aspect_ratio equal 1 i.e. 16:9
+     
+* a complete example     
+
+        # test_1
+        testsuite;input_file;testfile1.ts 
+        testsuite;vbi_pid;258
+        testsuite;tst_file;this
+
+        # test_2
+        testsuite;test_name;overriden_name_test
+        testsuite;input_file;testfile2.ts 
+        testsuite;video_pid;256
+        testsuite;tst_file;mytest.test2.tstcfg
+
+        vbi;data_unit;16
+        vbi;line;10;data_unit_id;03
+        vbi;line;10;data_unit_lenght;44
+        vbi;line;9;data_unit_id;02
+        vbi;line;9;data_unit_lenght;44
+        vbi;PTS;40
+
+- - -
 ## License
-Under MIT-like License:
+Under MIT-style licensing.
     
 Copyright (C) 2013 Sebastien Stang    
 

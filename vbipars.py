@@ -31,17 +31,45 @@ ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEAL
 """
 __version__='beta'
 __author__='sebastien stang'
-__author__='seb@mikrolax.me'
+__author_email__='seb@mikrolax.me'
 __license__='MIT'
 
 import argparse
 import os
 
 import logging
-logging.basicConfig(level=logging.INFO)
+FORMAT = "%(levelname)s:%(module)s:%(message)s" #%(asctime)s
+logging.basicConfig(format=FORMAT,level=logging.INFO)
 
 from parser.vbi import vbiPES as vbiPES 
 from parser.vbi_video import vbiVid as vbiVid
+
+vbi=vbiPES()
+video=vbiVid()
+
+def checkFromFile(tst_file_path,report=None):
+  #read file and execute tests
+  lines=open(tst_file_path).readlines()
+  for line in lines:
+    line=line.rstrip('\n')
+    line=line.rstrip()
+    #if line.startswith('#'):
+      #pass
+    if line.startswith('vbi;'):
+      if len(line.split(';'))==3:
+        skip,action,value=line.split(';')
+        vbi.check(action,value=value)
+      elif len(line.split(';'))==5:
+        skip,action,line,param,value=line.split(';')
+        vbi.check(action,lineNb=line,param=param,value=value,report=report)
+      else:
+        pass
+    elif line.startswith('video;'):
+      pass
+    else:
+      pass
+  return True
+
 
 def cli():
   parser = argparse.ArgumentParser(description='vbipars v.%s:  analyse VBI/VANC data from TS/PES/ES' %__version__,epilog='Sebastien Stang') #add version? 
@@ -57,10 +85,10 @@ def cli():
   parser.add_argument("infile",type=str,default='',help="input file.")
   args = parser.parse_args()
   
-  #print args.infile
   if not os.path.exists(args.infile):
-    print 'input file does not exist'
-    return 1
+    #raise NameError('input file does not exist')
+    raise ValueError('Error: Input file does not exist')
+    #return 1
     
   if args.version:
     print 'running vbiparse v.%s' %__version__
@@ -72,86 +100,91 @@ def cli():
       if args.output_stream != 'None':
         outstreampath=args.output_stream
       else:
-        outstreampath=args.infile+'.pes'
+        outstreampath=os.path.splitext(args.infile)+'.pes'
     else:
-      logging.warning('Unknown EXTRACT type. No extraction will be performed.')
-  
-  outreportpath=args.report        
+      logging.warning(' Unknown EXTRACT type. No extraction will be performed.')
+
+  if os.path.exists(args.test_file):
+    test_file=args.test_file    
+  else:
+    test_file=None
+        
+  outreportpath=None        
   if args.report != 'None':
     if args.output_report != 'None':
       outreportpath=args.output_report
     else:
-      outreportpath=args.infile+'.md'
-      
-  print '********************************************'
-  print '* '
-  print '* vbipars v.%s' %__version__
-  print '* '
-  print '* + prosessing file : %s' %args.infile
-  print '*   - format : %s' %args.format  
-  print '*   - video pid : %s' %args.video_pid
-  print '*   - vbi pid : %s' %args.vbi_pid
-  print '*   - extract : %s' %args.extract
-  print '*   - report : %s' %args.report
-  print '*   - test_file : %s' %args.test_file
-  print '* '
-  print '********************************************'
-
+      if test_file !=None:
+        outreportpath=os.path.splitext(test_file)[0]+'.md'
+      else:
+        outreportpath=os.path.splitext(args.infile)[0]+'.md'
+    open(outreportpath,'w').close()
+        
+  print ' '
+  print ' vbipars v.%s' %__version__
+  print '   + prosessing file : %s' %os.path.basename(args.infile)
+  print '     - format : %s' %args.format  
+  print '     - video pid : %s' %args.video_pid
+  print '     - vbi pid : %s' %args.vbi_pid
+  print '     - extract : %s' %args.extract
+  print '     - test_file : %s' %os.path.basename(test_file)
+  print '     - report type: %s' %args.report
+  print '     - report file: %s' %os.path.basename(outreportpath)
+  print ' '
   
-  vbi=vbiPES()
-  video=vbiVid()
   # import TS, or PES or ES then extract/analyse
   if args.format=='pes' and  args.vbi_pid!=0:
-    print 'analysing PES file not implemented yet'
+    logging.warning(' Analysing PES file not implemented yet. Skipping.')
     #vbi.analyseFromES(args.infile)
   elif args.format=='es':
-    print 'analysing ES file :'
+    logging.info(' Analysing ES file...')
     vbi.analyseFromPES(args.infile)
   elif args.format=='ts':
-    print 'analysing TS file :'  
-    vbi.analyseFromTS(args.infile,pid=args.vbi_pid) 
+    logging.info(' Analysing TS file...')
+    res=vbi.analyseFromTS(args.infile,pid=args.vbi_pid) 
+    '''if res==0:
+      logging.info(' TS file Analyse [OK]')   
+    else:
+      logging.info(' TS file Analyse [Error %s] ' %str(res))
+    '''
   else: # assume TS and parse PAT/PMT...
-    print 'auto-analysing TS file...'  
+    logging.info(' Auto-analysing TS file')
     #TS().extract()
     vbi.analyseFromTS(args.infile,pid=args.vbi_pid)
-  
   if args.video_pid!=0:
-    logging.info('analysing video PID ' %str(args.video_pid))
+    logging.info(' Analysing video PID %s' %str(args.video_pid))
     video.analyseFromTS(args.infile,pid=args.video_pid)  # add video pid    
-    
+  
   #if test, do them
-  if args.test_file:
-    logging.info('passing tests from %s' %args.test_file) 
-    ret=video.check('afd','active_format',2)  
-    ret=vbi.check('afd','active_format',2)  
-    
+  if os.path.exists(args.test_file):
+    logging.info(' Passing tests from %s' %str(os.path.basename(args.test_file)))
+    f=open(outreportpath,'w')
+    f.write('###Check\n - - - - \n')
+    f.close()  
+    check_result=checkFromFile(args.test_file,report=outreportpath)
+  else:
+    logging.warning('Test file config dos not exist.Skipping.')  
+  
   #output data if specify  
-  if args.extract:
-    logging.info('extracting %s' %args.extract )
+  if args.extract!='None':
+    logging.info(' Extracting %s' %args.extract )
     if args.extract =='pes':
       vbi.writePES(outstreampath)
     else:
-      logging.info('unknwown')
+      logging.warning(' %s extraction type not supported' %args.extract)
       #vbi.writeES(outstreampath) 
-    video.write() #Info
-
+    #video.write() #Info
+  
   #write report if specified
-  if args.report:
-    logging.info('write report %s' %args.report)
+  if args.report!=None:
+    logging.info(' Write detailed report %s' %str(os.path.basename(outreportpath)))
+    f=open(outreportpath,'a')
+    f.write('###PES Analayse \n - - - - \n')
+    f.close()  
     vbi.writeReport(outreportpath)  
-    video.write()  
+    #video.write()  
 
 
 if __name__ == '__main__':    
   cli()
-  '''
-  tst file as follow:
-  
-  afd:active_format:2
-  cc:process_cc_data:True
-  vbi:data_unit:16
-  vbi:data_unit_id:03
-  vbi:line:07
-  all:data_unit_id:16
-  '''
   

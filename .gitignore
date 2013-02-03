@@ -1,2 +1,13 @@
+*.dll
+*.exe
+*.o
+*.so
+
+*.7z
+*.rar
+*.tar
+*.zip
+
+*.log
+*.*~
 *.pyc
-*.py~

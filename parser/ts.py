@@ -28,8 +28,9 @@ __author__='seb@mikrolax.me'
 __license__='MIT'
 __version__='beta'
 
+import os
 import logging
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.WARNING)
 
 import bitstring
 
@@ -100,7 +101,7 @@ class TS(object):
     self.extractedPid=[]
     if infilepath != None:
       self.fromFile(infilepath)
-    logging.info('TS Extracting pid %s from %s' %(pid,infilepath))
+    logging.info('TS Extracting pid %s from %s' %(pid,str(os.path.basename(infilepath))))
     self.find_sync()
     logging.debug('found sync byte at pos %s' %self.bits.pos)
     nbTSpacket=0
@@ -114,7 +115,7 @@ class TS(object):
     if outfilepath != None:  
       self.writePES(outfilepath)
     else:
-      self.writePES('infilepath_pid%s.bin'%str(pid))
+      #self.writePES('infilepath_pid%s.bin'%str(pid))
       return ''.join(self.extractedPid) #''.join(x.encode('hex') for x in all) 
   
   #def writeES(self,filepath): Need PES header parsing...

@@ -245,6 +245,8 @@ class vbiPES(object):
   def checkDeltaPTS(self,valueInTick):
     delta=[]
     prev_pts=self.pesStat[0]['pts']
+    result=False
+    status='no PTS found'    
     for pes in self.pesStat[1:]:
       try:
         delta.append(long(pes['pts'],base=16)-long(prev_pts,base=16))
@@ -255,14 +257,14 @@ class vbiPES(object):
       logging.debug('Delta PTS min : %s' %str(min(delta)))
       logging.debug('Delta PTS max : %s' %str(max(delta)))
       if min(delta[1:])==long(valueInTick):
-        return (True,str(min(delta[1:])))
-      else:
-        return (False,str(min(delta[1:])))        
-    else:
-      return (False,'No PTS?')
+        result=True
+      status='Min:%s / Max:%s' %( str(min(delta[1:])),str(max(delta[1:])) ) 
+    return (result,status)
       
   def checkDataUnit(self,value):
-    return (True,value)
+    result=False
+    status='not found'    
+    return (result,status)
   
   def checkDataLine(self,lineNb,param,value):
     result=False
@@ -273,42 +275,34 @@ class vbiPES(object):
       pes_idx+=1
       if 'payload' in pes.keys():
         for line_info in pes['payload']:
-          if line_info['line']==lineNb:
-            print 'found line %s' %line_info['line']
-            if line_info[param]==value:
-              print 'found param %s' %line_info[param]
+          if line_info['line']==int(lineNb):
+            if int(line_info[param])==int(value):
+              #print 'found param %s:%s' %(param,line_info[param])
               value_list.append(True)
-    #print value_list
     if len(value_list)>0:
       result=True
       status='%d/%d' %(len(value_list),pes_idx)      
     return (result,status)
   
         
-  def check(self,action,lineNb=None,param=None,value=None,report=None): #add line_idx/occurence/pes nb???
+  def check(self,action,lineNb=None,param=None,value=None,report=None):
     #available_action=['line','data_unit','PTS']
     if action=='line':
       msg='line %d check if %s=%s...' %(int(lineNb),str(param),str(value))
-      #print msg, 
       res=self.checkDataLine(lineNb,param,value)
     elif action=='data_unit':
-      msg='Check if data_unit=%s...' %str(value)
-      #print msg, 
+      msg='check if data_unit=%s...' %(str(value))
       res=self.checkDataUnit(value)      
     elif action=='PTS':
-      msg='Check if Delta PTS=%s...' %str(value)
-      #print msg, 
+      msg='check if Delta PTS=%s...' %(str(value))
       res=self.checkDeltaPTS(value)
     else:
       msg='Unknown check expression %s.Skipping.' %action
-      #print msg, 
       return False
-      
-    #print res  
     logging.info('     %s : %s' %(str(msg),str(res)) )
-      
+    
     if report!=None:
-      md='     %s : %s (%s)\n' %(str(msg),str(res[0]),str(res[1]) ) 
+      md='     %s : %s\n' %(str(msg),str(res)) 
       mdfile=open(report,'a')    # codecs.open(report,'a','utf8')
       mdfile.write(md)
       #mdfile.write('     \n')   

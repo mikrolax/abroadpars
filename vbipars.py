@@ -58,7 +58,7 @@ def checkFromFile(tst_file_path,report=None):
     if line.startswith('vbi;'):
       if len(line.split(';'))==3:
         skip,action,value=line.split(';')
-        vbi.check(action,value=value)
+        vbi.check(action,value=value,report=report)
       elif len(line.split(';'))==5:
         skip,action,line,param,value=line.split(';')
         vbi.check(action,lineNb=line,param=param,value=value,report=report)

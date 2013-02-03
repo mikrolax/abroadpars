@@ -115,6 +115,7 @@ class Result():
   def __init__(self):
     self.result=[]
     self.infos=getPlatformInfos()
+    #cli()
   
   def add(self,result):
     self.result.append(result)
@@ -153,7 +154,7 @@ class VbiParsTst(unittest.TestCase):
       self.tst=os.path.join(os.path.dirname(prefix),test['tst_file'])
       md_out=prefix+'.'+self.testName.strip()+'.md'         #prefix
       cmd='python vbipars.py -vbi %s -video %s -tst %s -or %s %s ' %(self.vbi,self.video,self.tst,md_out,self.inFile)
-      print cmd
+      #print cmd
       print ' '
       #print 'Testing %s ...' %(os.path.basename(self.tst))
       logging.info('Testing %s ...' %(self.testName))

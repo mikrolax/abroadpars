@@ -86,9 +86,7 @@ def cli():
   args = parser.parse_args()
   
   if not os.path.exists(args.infile):
-    #raise NameError('input file does not exist')
     raise ValueError('Error: Input file does not exist')
-    #return 1
     
   if args.version:
     print 'running vbiparse v.%s' %__version__
@@ -179,7 +177,7 @@ def cli():
   if args.report!=None:
     logging.info(' Write detailed report %s' %str(os.path.basename(outreportpath)))
     f=open(outreportpath,'a')
-    f.write('###PES Analayse \n - - - - \n')
+    f.write('###PES Analyse \n - - - - \n')
     f.close()  
     vbi.writeReport(outreportpath)  
     #video.write()  
